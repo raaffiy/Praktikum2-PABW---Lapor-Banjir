@@ -64,21 +64,38 @@
 
             <!-- 3. Tinggi Genangan Air -->
             <div class="form-group">
-                <label for="tinggi_air" class="form-label">
+                <label for="tinggi_genangan" class="form-label">
                     Tinggi Genangan Air (cm) <span class="required">*</span>
                 </label>
                 <div class="input-wrapper">
                     <input 
                         type="number" 
-                        name="tinggi_air" 
-                        id="tinggi_air" 
-                        class="form-control @error('tinggi_air') is-invalid @enderror" 
+                        name="tinggi_genangan" 
+                        id="tinggi_genangan" 
+                        class="form-control @error('tinggi_genangan') is-invalid @enderror @error('tinggi_air') is-invalid @enderror" 
                         placeholder="Contoh: 75" 
                         min="1"
-                        value="{{ old('tinggi_air') }}" 
+                        value="{{ old('tinggi_genangan', old('tinggi_air')) }}" 
                         required
                     >
                     <span class="input-suffix">cm</span>
+                </div>
+            </div>
+
+            <!-- 4. Tanggal Kejadian -->
+            <div class="form-group">
+                <label for="tanggal_kejadian" class="form-label">
+                    Tanggal Kejadian <span class="required">*</span>
+                </label>
+                <div class="input-wrapper">
+                    <input 
+                        type="date" 
+                        name="tanggal_kejadian" 
+                        id="tanggal_kejadian" 
+                        class="form-control @error('tanggal_kejadian') is-invalid @enderror" 
+                        value="{{ old('tanggal_kejadian', date('Y-m-d')) }}" 
+                        required
+                    >
                 </div>
             </div>
 

@@ -35,6 +35,10 @@
                     <td class="value-col highlight-val">{{ $tinggiAir }} cm</td>
                 </tr>
                 <tr>
+                    <td class="label-col">Tanggal Kejadian</td>
+                    <td class="value-col">{{ \Carbon\Carbon::parse($tanggalKejadian)->translatedFormat('d F Y') }}</td>
+                </tr>
+                <tr>
                     <td class="label-col">Status Genangan</td>
                     <td class="value-col">
                         @if ($tinggiAir < 30)

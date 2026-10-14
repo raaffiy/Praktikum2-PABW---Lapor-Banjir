@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Laporan;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -16,31 +17,52 @@ class LaporBanjirController extends Controller
     }
 
     /**
-     * Memproses data laporan banjir (Method POST) dan menampilkan halaman konfirmasi.
-     * Karena prototipe tanpa database, data diproses langsung oleh Controller.
+     * Memproses data laporan banjir (Method POST) dan menyimpannya ke database
+     * menggunakan Laporan::create() sesuai ketentuan modul d.
      */
     public function submit(Request $request): View
     {
-        // Validasi data input: nama pelapor, lokasi, tinggi genangan air
+        // Validasi data input: nama pelapor, lokasi, tinggi genangan air, dan tanggal kejadian
         $validatedData = $request->validate([
             'nama_pelapor' => 'required|string|max:100',
             'lokasi' => 'required|string|max:200',
-            'tinggi_air' => 'required|numeric|min:1',
+            'tinggi_genangan' => 'required_without:tinggi_air|nullable|numeric|min:1',
+            'tinggi_air' => 'required_without:tinggi_genangan|nullable|numeric|min:1',
+            'tanggal_kejadian' => 'nullable|date',
         ], [
             'nama_pelapor.required' => 'Nama pelapor wajib diisi.',
             'lokasi.required' => 'Lokasi kejadian (kecamatan/desa) wajib diisi.',
-            'tinggi_air.required' => 'Tinggi genangan air wajib diisi.',
+            'tinggi_genangan.required_without' => 'Tinggi genangan air wajib diisi.',
+            'tinggi_air.required_without' => 'Tinggi genangan air wajib diisi.',
+            'tinggi_genangan.numeric' => 'Tinggi genangan air harus berupa angka.',
             'tinggi_air.numeric' => 'Tinggi genangan air harus berupa angka.',
+            'tinggi_genangan.min' => 'Tinggi genangan air minimal 1 cm.',
             'tinggi_air.min' => 'Tinggi genangan air minimal 1 cm.',
+            'tanggal_kejadian.date' => 'Format tanggal kejadian tidak valid.',
         ]);
 
-        // Simpan ke session flash agar jika halaman konfirmasi di-refresh atau dibuka lewat route GET konfirmasi, data tetap tersedia
-        session()->flash('laporan_terbaru', $validatedData);
+        $tinggi = $request->input('tinggi_genangan') ?? $request->input('tinggi_air') ?? 0;
+        $tanggalKejadian = $request->input('tanggal_kejadian') ?? now()->toDateString();
+
+        // Menyimpan data ke tabel laporan menggunakan Laporan::create()
+        $laporan = Laporan::create([
+            'nama_pelapor' => $validatedData['nama_pelapor'],
+            'lokasi' => $validatedData['lokasi'],
+            'tinggi_genangan' => (int) $tinggi,
+            'tanggal_kejadian' => $tanggalKejadian,
+        ]);
+
+        // Simpan ke flash session agar halaman konfirmasi dapat menampilkan data yang baru dikirim
+        session()->flash('laporan_terbaru_id', $laporan->id);
+        session()->flash('laporan_terbaru', $laporan);
 
         return view('lapor_banjir.konfirmasi', [
-            'namaPelapor' => $validatedData['nama_pelapor'],
-            'lokasi' => $validatedData['lokasi'],
-            'tinggiAir' => $validatedData['tinggi_air'],
+            'laporan' => $laporan,
+            'namaPelapor' => $laporan->nama_pelapor,
+            'lokasi' => $laporan->lokasi,
+            'tinggiAir' => $laporan->tinggi_genangan,
+            'tinggiGenangan' => $laporan->tinggi_genangan,
+            'tanggalKejadian' => $laporan->tanggal_kejadian,
         ]);
     }
 
@@ -52,64 +74,38 @@ class LaporBanjirController extends Controller
     {
         $laporan = session('laporan_terbaru');
 
-        // Jika diakses langsung tanpa submit, sediakan data representatif contoh
-        $namaPelapor = $laporan['nama_pelapor'] ?? 'Rafly Maulana';
-        $lokasi = $laporan['lokasi'] ?? 'Desa Citeureup, Kecamatan Dayeuhkolot';
-        $tinggiAir = $laporan['tinggi_air'] ?? 85;
+        if (! $laporan && session('laporan_terbaru_id')) {
+            $laporan = Laporan::find(session('laporan_terbaru_id'));
+        }
+
+        // Jika diakses langsung tanpa submit, ambil data laporan terbaru dari database
+        if (! $laporan) {
+            $laporan = Laporan::latest()->first();
+        }
+
+        $namaPelapor = $laporan ? $laporan->nama_pelapor : 'Rafly Maulana';
+        $lokasi = $laporan ? $laporan->lokasi : 'Desa Citeureup, Kecamatan Dayeuhkolot';
+        $tinggiAir = $laporan ? $laporan->tinggi_genangan : 85;
+        $tanggalKejadian = $laporan ? $laporan->tanggal_kejadian : now()->toDateString();
 
         return view('lapor_banjir.konfirmasi', [
+            'laporan' => $laporan,
             'namaPelapor' => $namaPelapor,
             'lokasi' => $lokasi,
             'tinggiAir' => $tinggiAir,
+            'tinggiGenangan' => $tinggiAir,
+            'tanggalKejadian' => $tanggalKejadian,
         ]);
     }
 
     /**
-     * Menampilkan halaman daftar laporan banjir yang memuat beberapa contoh laporan.
-     * Data laporan ditulis dalam bentuk array pada Controller (tanpa database).
+     * Menampilkan halaman daftar laporan banjir.
+     * Mengambil seluruh data dari database menggunakan Laporan::all() sesuai ketentuan e.
      */
     public function daftar(): View
     {
-        // Contoh data laporan banjir dengan variasi tinggi air untuk menguji status:
-        // < 30 cm = Waspada, 30-70 cm = Siaga, > 70 cm = Awas
-        $daftarLaporan = [
-            [
-                'nama_pelapor' => 'Asep Sunandar',
-                'lokasi' => 'Kp. Bojong Asih, Desa Dayeuhkolot, Kec. Dayeuhkolot',
-                'tinggi_air' => 95,
-                'waktu' => '10 menit yang lalu',
-            ],
-            [
-                'nama_pelapor' => 'Siti Nurhaliza',
-                'lokasi' => 'Kelurahan Andir, Kec. Baleendah',
-                'tinggi_air' => 60,
-                'waktu' => '25 menit yang lalu',
-            ],
-            [
-                'nama_pelapor' => 'Budi Hartono',
-                'lokasi' => 'Desa Tegalluar, Kec. Bojongsoang',
-                'tinggi_air' => 20,
-                'waktu' => '45 menit yang lalu',
-            ],
-            [
-                'nama_pelapor' => 'Rina Wijaya',
-                'lokasi' => 'Desa Cijagra, Kec. Paseh',
-                'tinggi_air' => 120,
-                'waktu' => '1 jam yang lalu',
-            ],
-            [
-                'nama_pelapor' => 'Dedi Kurniawan',
-                'lokasi' => 'Desa Kamasan, Kec. Banjaran',
-                'tinggi_air' => 35,
-                'waktu' => '2 jam yang lalu',
-            ],
-            [
-                'nama_pelapor' => 'Hendro Prasetyo',
-                'lokasi' => 'Desa Pananjung, Kec. Cangkuang',
-                'tinggi_air' => 15,
-                'waktu' => '3 jam yang lalu',
-            ],
-        ];
+        // Mengambil data dari database menggunakan Laporan::all()
+        $daftarLaporan = Laporan::all();
 
         return view('lapor_banjir.daftar', [
             'daftarLaporan' => $daftarLaporan,
